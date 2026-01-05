@@ -49,7 +49,7 @@ class KHIRoLibLite:
         self._telnet_client = TCPSockClient(self._ip, self._telnet_port)
         telnet_connect(self._telnet_client)
 
-        print("Connection with robot established")
+        # print("Connection with robot established")
 
     def close(self):
         """Close sequence for robot.
@@ -83,28 +83,41 @@ class KHIRoLibLite:
 
         for element in pg_status_list:
             if element.is_exist:
-                if element.name == program_name:  # добавить регистр
+                if element.name == program_name:  # add register
                     if element.is_running:
                         pc_abort(self._telnet_client, 1 << (element.thread_num - 1))
                     pc_kill(self._telnet_client, 1 << (element.thread_num - 1))
                     break  # because we have only 1 active program with the same name
 
         if rcp_status.is_exist:
-            if rcp_status.name == program_name:  # добавить регистр
+            if rcp_status.name == program_name:  # add register
                 if rcp_status.is_running:
                     rcp_hold(self._telnet_client)
                 kill_rcp(self._telnet_client)
 
-        # Uploading program block
-        file_string = ".PROGRAM " + program_name + "\n"
-        file_string += program_text + "\n"
-        file_string += ".END" + "\n"
-
+        file_string = self.find_program_section(program_text, program_name)
         program_bytes = bytes(file_string, "utf-8")
         upload_program(self._telnet_client, program_bytes)
 
         if open_program:
             rcp_prime(self._telnet_client, program_name)
+
+    def find_program_section(self, content: str, program_name: str):
+        # Find the section of the program content that corresponds to the given program name
+        lines = content.split("\n")
+        section_start = None
+        section_end = None
+
+        for i, line in enumerate(lines):
+            if line.startswith(".PROGRAM " + program_name + "("):
+                section_start = i
+            elif line.startswith(".END") and section_start is not None:
+                section_end = i
+                break
+
+        if section_start is not None and section_end is not None:
+            return "\n".join(lines[section_start : section_end + 1])
+        return ""
 
     def prepare_rcp(self, program_name):
         rcp_prepare(self._telnet_client, program_name)

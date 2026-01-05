@@ -59,14 +59,13 @@ async def upload_program_to_robot(robot_ip: str, program_file: str):
         program_name = os.path.splitext(os.path.basename(program_file))[0]
 
         logger.debug(f"Connecting to robot at IP: {robot_ip}")
-        logger.debug(f"Uploading program: {program_name}")
-        logger.debug(f"File: {program_file}")
+        logger.debug(f"Program for uploading: {program_name}")
+        logger.debug(f"File path of the program: {program_file}")
 
         # Create an object for working with the robot
         robot = KHIRoLibLite(robot_ip)
-
         # Upload the program to the robot
-        logger.debug("Starting program upload...")
+        logger.debug("Connection established. Starting program upload...")
         robot.upload_program(
             program_name=program_name,
             program_text=program_text,
@@ -78,6 +77,9 @@ async def upload_program_to_robot(robot_ip: str, program_file: str):
 
     except FileNotFoundError as e:
         logger.error(f"Error: File not found - {e}")
+        return False
+    except ConnectionError as e:
+        logger.error(f"Connection error: {e}")
         return False
     except Exception as e:
         logger.error(f"Error during program upload: {e}")
@@ -92,7 +94,6 @@ async def main():
         return
 
     robot_ip = sys.argv[1]
-    print(robot_ip)
     program_file = sys.argv[2]
 
     # Check file extension
@@ -111,7 +112,7 @@ async def main():
         logger.debug("Operation completed successfully")
         sys.exit(0)
     else:
-        logger.debug("Operation completed with errors")
+        logger.error("Operation completed with errors")
         sys.exit(1)
 
 
