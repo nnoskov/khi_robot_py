@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from typing import Optional
 from src.khi_telnet_lib import telnet_connect  # , TCPSockClient
 from src.tcp_sock_client import TCPSockClient
 
@@ -31,6 +33,41 @@ import config.robot as robot_config
 
 TELNET_DEF_PORT = 23
 TELNET_SIM_PORT = 9105
+
+
+@dataclass
+class UploadResult:
+    program_uploaded: bool = False
+    trans_points_uploaded: bool = False
+    trans_points_exist: bool = False
+    joints_points_uploaded: bool = False
+    joints_points_exist: bool = False
+    program_loaded: bool = False  # if open_program=True
+    error_message: Optional[str] = None
+
+    def all_successful(self) -> bool:
+        return (
+            self.program_uploaded
+            and (
+                (self.trans_points_uploaded and self.trans_points_exist)
+                or not self.trans_points_exist
+            )
+            and (
+                (self.joints_points_uploaded and self.joints_points_exist)
+                or not self.joints_points_exist
+            )
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "program_uploaded": self.program_uploaded,
+            "trans_points_uploaded": self.trans_points_uploaded,
+            "trans_points_exist": self.trans_points_exist,
+            "joints_points_uploaded": self.joints_points_uploaded,
+            "joints_points_exist": self.joints_points_exist,
+            "program_loaded": self.program_loaded,
+            "all_successful": self.all_successful(),
+        }
 
 
 class KHIRoLibLite:
@@ -77,46 +114,105 @@ class KHIRoLibLite:
         else:
             return get_pc_status(self._telnet_client, 1 << (thread_num - 1))
 
-    def upload_program(self, program_name, program_text, open_program=False):
-        pg_status_list = self.get_status_pc()
-        rcp_status = get_rcp_status(self._telnet_client)
+    def upload_program(
+        self, program_name, program_text, open_program=False
+    ) -> UploadResult:
+        result = UploadResult()
 
-        for element in pg_status_list:
-            if element.is_exist:
-                if element.name == program_name:  # add register
-                    if element.is_running:
-                        pc_abort(self._telnet_client, 1 << (element.thread_num - 1))
-                    pc_kill(self._telnet_client, 1 << (element.thread_num - 1))
-                    break  # because we have only 1 active program with the same name
+        try:
+            pg_status_list = self.get_status_pc()
+            rcp_status = get_rcp_status(self._telnet_client)
 
-        if rcp_status.is_exist:
-            if rcp_status.name == program_name:  # add register
-                if rcp_status.is_running:
-                    rcp_hold(self._telnet_client)
-                kill_rcp(self._telnet_client)
+            for element in pg_status_list:
+                if element.is_exist:
+                    if element.name.lower() == program_name.lower():
+                        if element.is_running:
+                            pc_abort(self._telnet_client, 1 << (element.thread_num - 1))
+                        pc_kill(self._telnet_client, 1 << (element.thread_num - 1))
+                        break
 
-        file_string = self.find_program_section(program_text, program_name)
-        program_bytes = bytes(file_string, "utf-8")
-        upload_program(self._telnet_client, program_bytes)
+            if rcp_status.is_exist:
+                if rcp_status.name.lower() == program_name.lower():
+                    if rcp_status.is_running:
+                        rcp_hold(self._telnet_client)
+                    kill_rcp(self._telnet_client)
 
-        if open_program:
-            rcp_prime(self._telnet_client, program_name)
+            # Upload main program
+            pg_string = self.find_section(program_text, program_name, "program")
+            if pg_string:
+                program_bytes = bytes(pg_string, "utf-8")
+                upload_program(self._telnet_client, program_bytes)
+                result.program_uploaded = True
+            else:
+                result.error_message = (
+                    f"Program {program_name} did not found in the file."
+                )
+                return result
 
-    def find_program_section(self, content: str, program_name: str):
-        # Find the section of the program content that corresponds to the given program name
+            # Upload trans points
+            trans_string = self.find_section(program_text, program_name, "trans")
+            if trans_string:
+                program_bytes = bytes(trans_string, "utf-8")
+                upload_program(self._telnet_client, program_bytes)
+                result.trans_points_uploaded = True
+                result.trans_points_exist = True
+            else:
+                result.trans_points_exist = False
+
+            # Upload joints points
+            joints_string = self.find_section(program_text, program_name, "joints")
+            if joints_string:
+                program_bytes = bytes(joints_string, "utf-8")
+                upload_program(self._telnet_client, program_bytes)
+                result.joints_points_uploaded = True
+                result.joints_points_exist = True
+            else:
+                result.joints_points_exist = False
+
+            if open_program:
+                rcp_prime(self._telnet_client, program_name)
+                result.program_loaded = True
+
+        except Exception as e:
+            result.error_message = str(e)
+
+        return result
+
+    def find_section(self, content: str, program_name: str, section_type: str) -> str:
+        """
+        Finds a section in the program content.
+
+        Args:
+            content: Full text of the program
+            program_name: Name of the program
+            section_type: Type of section ("program", "trans", "joints")
+
+        Returns:
+            Text of the found section or an empty string if not found.
+        """
         lines = content.split("\n")
         section_start = None
         section_end = None
-
         for i, line in enumerate(lines):
-            if line.startswith(".PROGRAM " + program_name + "("):
-                section_start = i
-            elif line.startswith(".END") and section_start is not None:
+            if section_type == "program":
+                if line.startswith(".PROGRAM " + program_name + "("):
+                    section_start = i
+            elif section_type == "trans":
+                if line.startswith(".TRANS"):
+                    section_start = i
+            elif section_type == "joints":
+                if line.startswith(".JOINTS"):
+                    section_start = i
+            else:
+                raise ValueError(f"Invalid section type{section_type}")
+
+            if section_start is not None and line.startswith(".END"):
                 section_end = i
                 break
 
         if section_start is not None and section_end is not None:
             return "\n".join(lines[section_start : section_end + 1])
+
         return ""
 
     def prepare_rcp(self, program_name):

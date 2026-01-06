@@ -73,19 +73,16 @@ async def upload_program_to_robot(robot_ip: str, program_file: str):
         robot = KHIRoLibLite(robot_ip)
         # Upload the program to the robot
         logger.debug("Connection established. Starting program upload...")
-        robot.upload_program(
+        result = robot.upload_program(
             program_name=program_name,
             program_text=program_text,
             open_program=True,  # Open the program on teach pendant
         )
+        if not result.program_uploaded:
+            logger.error(f"Program '{program_name}' upload failed")
+            return False
         logger.info(
             f"{PROGRAM_MARKER} Program '{program_name}' successfully uploaded to the robot"
-        )
-        logger.info(
-            f"{TRANS_POINTS_MARKER} Program '{program_name}' successfully uploaded to the robot"
-        )
-        logger.info(
-            f"{JOINTS_POINTS_MARKER} Program '{program_name}' successfully uploaded to the robot"
         )
         return True
 
