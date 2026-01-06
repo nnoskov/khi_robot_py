@@ -11,6 +11,13 @@ import asyncio
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, script_dir)
 
+
+SUCCESS_MARKER = "[UPLOAD_SUCCESS]"
+ERROR_MARKER = "[UPLOAD_ERROR]"
+PROGRAM_MARKER = "[PROGRAM_NAME]"
+TRANS_POINTS_MARKER = "[TRANS_POINTS]"
+JOINTS_POINTS_MARKER = "[JOINTS_POINTS]"
+
 try:
     from loggerConfig import get_console_logger
 except ImportError:
@@ -71,8 +78,15 @@ async def upload_program_to_robot(robot_ip: str, program_file: str):
             program_text=program_text,
             open_program=True,  # Open the program on teach pendant
         )
-
-        logger.debug(f"Program '{program_name}' successfully uploaded to the robot")
+        logger.info(
+            f"{PROGRAM_MARKER} Program '{program_name}' successfully uploaded to the robot"
+        )
+        logger.info(
+            f"{TRANS_POINTS_MARKER} Program '{program_name}' successfully uploaded to the robot"
+        )
+        logger.info(
+            f"{JOINTS_POINTS_MARKER} Program '{program_name}' successfully uploaded to the robot"
+        )
         return True
 
     except FileNotFoundError as e:
@@ -109,7 +123,9 @@ async def main():
     success = await upload_program_to_robot(robot_ip, program_file)
 
     if success:
-        logger.debug("Operation completed successfully")
+        logger.info(
+            f"{SUCCESS_MARKER}:{PROGRAM_MARKER} Operation of loading Programs from '{program_file}' completed successfully"
+        )
         sys.exit(0)
     else:
         logger.error("Operation completed with errors")
