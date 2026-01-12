@@ -79,7 +79,9 @@ async def upload_program_to_robot(robot_ip: str, program_file: str):
             open_program=True,  # Open the program on teach pendant
         )
         if not result.program_uploaded:
-            logger.error(f"Program '{program_name}' upload failed")
+            logger.error(
+                f"{ERROR_MARKER} Program '{program_name}' upload failed - {result.error_message}"
+            )
             return False
         logger.info(
             f"{PROGRAM_MARKER} Program '{program_name}' successfully uploaded to the robot"
@@ -121,11 +123,11 @@ async def main():
 
     if success:
         logger.info(
-            f"{SUCCESS_MARKER}:{PROGRAM_MARKER} Operation of loading Programs from '{program_file}' completed successfully"
+            f"{SUCCESS_MARKER} Operation of loading Programs from '{program_file}' completed successfully"
         )
         sys.exit(0)
     else:
-        logger.error("Operation completed with errors")
+        logger.error(f"{ERROR_MARKER} Operation completed with errors")
         sys.exit(1)
 
 

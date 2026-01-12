@@ -140,9 +140,13 @@ class KHIRoLibLite:
             # Upload main program
             pg_string = self.find_section(program_text, program_name, "program")
             if pg_string:
-                program_bytes = bytes(pg_string, "utf-8")
-                upload_program(self._telnet_client, program_bytes)
-                result.program_uploaded = True
+                if not self.is_pg_valid(pg_string):
+                    result.error_message = f"Program {program_name} is not valid."
+                    return result
+                else:
+                    program_bytes = bytes(pg_string, "utf-8")
+                    upload_program(self._telnet_client, program_bytes)
+                    result.program_uploaded = True
             else:
                 result.error_message = (
                     f"Program {program_name} did not found in the file."
@@ -177,6 +181,46 @@ class KHIRoLibLite:
             result.error_message = str(e)
 
         return result
+
+    def is_pg_valid(self, text: str) -> bool:
+        """
+        Simple check - return True if all  SETCONDW1/SETCONDW2 is correct
+
+        Args:
+            text: multiline text
+
+        Returns:
+            bool: True if have no faults, False if have one or more faults
+        """
+        for line in text.split("\n"):
+            line = line.strip()
+
+            if line and (line.startswith("SETCONDW")):
+                parts = line.split()
+                # Fast check of format
+                if len(parts) < 2 or "=" not in parts[1]:
+                    return False
+
+                param_name, values_str = parts[1].split("=", 1)
+
+                # param should be a digit
+                if not param_name.isdigit():
+                    return False
+
+                # Check values
+                for value in values_str.split(","):
+                    value = value.strip()
+
+                    if not value:  # Empty value
+                        return False
+
+                    try:
+                        # try to convert to float
+                        float(value)
+                    except ValueError:
+                        return False
+
+        return True
 
     def find_section(self, content: str, program_name: str, section_type: str) -> str:
         """
