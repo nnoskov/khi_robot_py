@@ -127,7 +127,7 @@ async def main():
         )
         sys.exit(0)
     else:
-        logger.error(f"{ERROR_MARKER} Operation completed with errors")
+        logger.error(f"{ERROR_MARKER} Operation of loading completed with errors")
         sys.exit(1)
 
 
