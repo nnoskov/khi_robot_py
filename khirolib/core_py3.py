@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import time
 from typing import Optional
 from src.khi_telnet_lib import telnet_connect  # , TCPSockClient
 from src.tcp_sock_client import TCPSockClient
@@ -43,6 +44,7 @@ class UploadResult:
     joints_points_uploaded: bool = False
     joints_points_exist: bool = False
     program_loaded: bool = False  # if open_program=True
+    pcs_restarted: bool = False
     error_message: Optional[str] = None
 
     def all_successful(self) -> bool:
@@ -56,6 +58,7 @@ class UploadResult:
                 (self.joints_points_uploaded and self.joints_points_exist)
                 or not self.joints_points_exist
             )
+            and self.pcs_restarted
         )
 
     def to_dict(self) -> dict:
@@ -65,6 +68,7 @@ class UploadResult:
             "trans_points_exist": self.trans_points_exist,
             "joints_points_uploaded": self.joints_points_uploaded,
             "joints_points_exist": self.joints_points_exist,
+            "pcs_restarted": self.pcs_restarted,
             "program_loaded": self.program_loaded,
             "all_successful": self.all_successful(),
         }
@@ -115,7 +119,7 @@ class KHIRoLibLite:
             return get_pc_status(self._telnet_client, 1 << (thread_num - 1))
 
     def upload_program(
-        self, program_name, program_text, open_program=False
+        self, program_name, program_text, open_program=False, restart_pcs=True
     ) -> UploadResult:
         result = UploadResult()
 
@@ -125,11 +129,13 @@ class KHIRoLibLite:
 
             for element in pg_status_list:
                 if element.is_exist:
-                    if element.name.lower() == program_name.lower():
+                    if restart_pcs or element.name.lower() == program_name.lower():
                         if element.is_running:
                             pc_abort(self._telnet_client, 1 << (element.thread_num - 1))
                         pc_kill(self._telnet_client, 1 << (element.thread_num - 1))
-                        break
+                        time.sleep(
+                            0.5
+                        )  # Wait for the robot to process the abort/kill command
 
             if rcp_status.is_exist:
                 if rcp_status.name.lower() == program_name.lower():
@@ -168,6 +174,16 @@ class KHIRoLibLite:
                 result.joints_points_exist = True
             else:
                 result.joints_points_exist = False
+
+            if restart_pcs:
+                pg_status_list = self.get_status_pc()
+                for element in pg_status_list:
+                    if element.is_exist:
+                        result.error_message = f"Program '{element.name}' still exists on thread {element.thread_num} after stop sequence."
+                        break
+                # Restart all PC programs
+                pc_execute(self._telnet_client, "autostart.pc", 1)
+                result.pcs_restarted = True
 
             if open_program:
                 rcp_prime(self._telnet_client, program_name)

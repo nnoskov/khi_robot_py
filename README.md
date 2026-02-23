@@ -20,23 +20,3 @@ It is designed to be **fast**, **efficient**, and **minimally dependent on file 
 ❗ **If anyone knows how to remove the 'P2076' error ('SAVE/LOAD in progress'), please submit an issue!**
 
 ---
-
-## 🚀 Usage
-Check out `example.py` for usage:
-```python
-from khi_robot_py import KHIRoLibLite
-
-async def main():
-    robot = KHIRoLibLite()
-    await robot.execute_rcp(program_name="test_pg")
-
-import asyncio
-asyncio.run(main())
-```
-
-For more details, refer to `example.py` in the repository.
-
----
-
-## 🤝 Contributing
-Contributions are welcome! Feel free to submit issues and pull requests.

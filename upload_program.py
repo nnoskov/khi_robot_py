@@ -76,7 +76,7 @@ async def upload_program_to_robot(robot_ip: str, program_file: str):
         result = robot.upload_program(
             program_name=program_name,
             program_text=program_text,
-            open_program=True,  # Open the program on teach pendant
+            open_program=False,  # Open the program on teach pendant
         )
         if not result.program_uploaded:
             logger.error(f"Program '{program_name}' upload failed")
