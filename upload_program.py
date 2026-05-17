@@ -26,7 +26,7 @@ except ImportError:
 
     def get_console_logger():
         """Fallback logger if loggerConfig is not available"""
-        logger = logging.getLogger("DelfoiPostprocessor")
+        logger = logging.getLogger("KWSLogger")
         if not logger.handlers:
             logger.setLevel(logging.DEBUG)
             formatter = logging.Formatter(
